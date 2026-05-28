@@ -9,9 +9,9 @@ architecture sim of top_tb is
 
     constant CLK_PERIOD : time := 10 ns; -- 100 MHz
 
-    -- Dla UART 9600:
-    -- 100_000_000 / 9_600 = 10417 taktów
-    constant BIT_TICKS : integer := 100_000_000 / 9_600;
+    -- Dla UART 115200:
+    -- 100_000_000 / 115_200 = 868 taktów
+    constant BIT_TICKS : integer := 100_000_000 / 115_200;
     constant BIT_TIME  : time := CLK_PERIOD * BIT_TICKS;
 
     signal clk    : std_logic := '0';
