@@ -1,64 +1,112 @@
-## Basys 3 constraints for PmodBLE UART echo project
-## Top-level ports expected:
-## clk, btnC, ble_rx, ble_tx, ble_cts, led[7:0]
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
-## Clock signal - 100 MHz
-set_property -dict { PACKAGE_PIN W5 IOSTANDARD LVCMOS33 } [get_ports clk]
-create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
+entity top is
+    port (
+        clk     : in  std_logic;  -- 100 MHz z Basys 3
+        btnC    : in  std_logic;  -- reset
 
+        ble_rx  : in  std_logic;  -- z TXD modułu PmodBLE do FPGA
+        ble_tx  : out std_logic;  -- z FPGA do RXD modułu PmodBLE
+        ble_cts : out std_logic;  -- CTS pin PmodBLE (active low) - drive '0' to allow transmit
+        ble_rst : out std_logic;
+        ble_mode : out std_logic;
 
-## Reset button - BTNC
-set_property -dict { PACKAGE_PIN U18 IOSTANDARD LVCMOS33 } [get_ports btnC]
+        led     : out std_logic_vector(7 downto 0)
+    );
+end entity;
 
+architecture rtl of top is
 
-## LEDs 0-7
-set_property -dict { PACKAGE_PIN U16 IOSTANDARD LVCMOS33 } [get_ports {led[0]}]
-set_property -dict { PACKAGE_PIN E19 IOSTANDARD LVCMOS33 } [get_ports {led[1]}]
-set_property -dict { PACKAGE_PIN U19 IOSTANDARD LVCMOS33 } [get_ports {led[2]}]
-set_property -dict { PACKAGE_PIN V19 IOSTANDARD LVCMOS33 } [get_ports {led[3]}]
-set_property -dict { PACKAGE_PIN W18 IOSTANDARD LVCMOS33 } [get_ports {led[4]}]
-set_property -dict { PACKAGE_PIN U15 IOSTANDARD LVCMOS33 } [get_ports {led[5]}]
-set_property -dict { PACKAGE_PIN U14 IOSTANDARD LVCMOS33 } [get_ports {led[6]}]
-set_property -dict { PACKAGE_PIN V14 IOSTANDARD LVCMOS33 } [get_ports {led[7]}]
+    signal rx_data  : std_logic_vector(7 downto 0);
+    signal rx_valid : std_logic;
 
+    signal tx_data  : std_logic_vector(7 downto 0) := (others => '0');
+    signal tx_start : std_logic := '0';
+    signal tx_busy  : std_logic;
 
-## Pmod Header JB - UART to PmodBLE
-##
-## PmodBLE pinout (top row of JB):
-##   JB1 (pin 1) = CTS  - Clear To Send input (active low)
-##   JB2 (pin 2) = RXD  - receive data input of PmodBLE (FPGA sends TO this)
-##   JB3 (pin 3) = TXD  - transmit data output of PmodBLE (FPGA receives FROM this)
-##   JB4 (pin 4) = RTS  - Ready To Send output
-##
-## UART connection is crossed:
-##   FPGA ble_tx  -> PmodBLE RXD (pin 2)
-##   FPGA ble_rx  <- PmodBLE TXD (pin 3)
-##   FPGA ble_cts -> PmodBLE CTS (pin 1) - drive low to allow BLE to transmit
+    signal led_reg  : std_logic_vector(7 downto 0) := (others => '0');
 
-## JB1 - CTS to PmodBLE (active low = allow transmit)
-set_property -dict { PACKAGE_PIN A14 IOSTANDARD LVCMOS33 } [get_ports ble_cts]
+    -- Echo pending flag: set when we received a byte but TX was busy
+    signal echo_pending : std_logic := '0';
 
-## JB2 - FPGA TX to PmodBLE RXD
-set_property -dict { PACKAGE_PIN A16 IOSTANDARD LVCMOS33 } [get_ports ble_tx]
+begin
 
-## JB3 - PmodBLE TXD to FPGA RX
-set_property -dict { PACKAGE_PIN B15 IOSTANDARD LVCMOS33 } [get_ports ble_rx]
+    led <= led_reg;
 
-## JB4 - RTS from PmodBLE (active low, directly active, directly active, directly active - not used, directly active)
-#set_property -dict { PACKAGE_PIN B16 IOSTANDARD LVCMOS33 } [get_ports ble_rts]
-
-## JB8 - PmodBLE Reset (active low)
-set_property -dict { PACKAGE_PIN A17 IOSTANDARD LVCMOS33 } [get_ports ble_rst]
-## JB9 - PmodBLE Mode (high = app mode)
-set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports ble_mode]
+    -- Drive CTS low so PmodBLE is always allowed to transmit data to FPGA
+    ble_cts <= '0';
+    ble_rst <= '1';   -- 1 = Wyciągnij moduł z resetu
+    ble_mode <= '1';  -- 1 = Tryb standardowej aplikacji (UART)
 
 
+    uart_receiver : entity work.uart_rx
+        generic map (
+            CLK_FREQ  => 100_000_000,
+            BAUD_RATE => 115_200
+        )
+        port map (
+            clk        => clk,
+            rst        => btnC,
+            rx         => ble_rx,
+            data_out   => rx_data,
+            data_valid => rx_valid
+        );
 
-## Configuration options, can be used for all designs
-set_property CONFIG_VOLTAGE 3.3 [current_design]
-set_property CFGBVS VCCO [current_design]
+    uart_transmitter : entity work.uart_tx
+        generic map (
+            CLK_FREQ  => 100_000_000,
+            BAUD_RATE => 115_200
+        )
+        port map (
+            clk      => clk,
+            rst      => btnC,
+            data_in  => tx_data,
+            tx_start => tx_start,
+            tx       => ble_tx,
+            tx_busy  => tx_busy
+        );
 
-## SPI configuration mode options for QSPI boot, can be used for all designs
-set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
-set_property BITSTREAM.CONFIG.CONFIGRATE 33 [current_design]
-set_property CONFIG_MODE SPIx4 [current_design]
+    process(clk)
+    begin
+        if rising_edge(clk) then
+
+            if btnC = '1' then
+                led_reg      <= (others => '0');
+                tx_start     <= '0';
+                tx_data      <= (others => '0');
+                echo_pending <= '0';
+
+            else
+                tx_start <= '0';
+
+                if rx_valid = '1' then
+                    -- pokaż odebrany bajt na LED-ach, ignorując znaki nowej linii (CR=0x0D, LF=0x0A)
+                    if rx_data /= x"0A" and rx_data /= x"0D" then
+                        led_reg <= rx_data;
+                    end if;
+
+                    -- Zapamiętaj dane do odesłania (echo)
+                    tx_data <= rx_data;
+
+                    -- odeślij ten sam bajt jako echo
+                    if tx_busy = '0' then
+                        tx_start <= '1';
+                        echo_pending <= '0';
+                    else
+                        -- TX jest zajęty, zapamiętaj że trzeba odesłać
+                        echo_pending <= '1';
+                    end if;
+
+                elsif echo_pending = '1' and tx_busy = '0' then
+                    -- TX się zwolnił, odeślij zapamiętany bajt
+                    tx_start <= '1';
+                    echo_pending <= '0';
+                end if;
+
+            end if;
+        end if;
+    end process;
+
+end architecture;
