@@ -47,6 +47,12 @@ set_property -dict { PACKAGE_PIN B15 IOSTANDARD LVCMOS33 } [get_ports ble_rx]
 ## JB4 - RTS from PmodBLE (active low, directly active, directly active, directly active - not used, directly active)
 #set_property -dict { PACKAGE_PIN B16 IOSTANDARD LVCMOS33 } [get_ports ble_rts]
 
+## JB8 - PmodBLE Reset (active low)
+set_property -dict { PACKAGE_PIN A17 IOSTANDARD LVCMOS33 } [get_ports ble_rst]
+## JB9 - PmodBLE Mode (high = app mode)
+set_property -dict { PACKAGE_PIN C15 IOSTANDARD LVCMOS33 } [get_ports ble_mode]
+
+
 
 ## Configuration options, can be used for all designs
 set_property CONFIG_VOLTAGE 3.3 [current_design]
