@@ -10,6 +10,8 @@ entity top is
         ble_rx  : in  std_logic;  -- z TXD modułu PmodBLE do FPGA
         ble_tx  : out std_logic;  -- z FPGA do RXD modułu PmodBLE
         ble_cts : out std_logic;  -- CTS pin PmodBLE (active low) - drive '0' to allow transmit
+        ble_rst : out std_logic;
+        ble_mode : out std_logic;
 
         led     : out std_logic_vector(7 downto 0)
     );
@@ -35,6 +37,9 @@ begin
 
     -- Drive CTS low so PmodBLE is always allowed to transmit data to FPGA
     ble_cts <= '0';
+    ble_rst <= '1';   -- 1 = Wyciągnij moduł z resetu
+    ble_mode <= '1';  -- 1 = Tryb standardowej aplikacji (UART)
+
 
     uart_receiver : entity work.uart_rx
         generic map (
