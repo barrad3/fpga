@@ -5,7 +5,7 @@ use ieee.numeric_std.all;
 entity uart_rx is
     generic (
         CLK_FREQ  : integer := 100_000_000;
-        BAUD_RATE : integer := 9_600
+        BAUD_RATE : integer := 115_200
     );
     port (
         clk        : in  std_logic;
