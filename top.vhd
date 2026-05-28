@@ -44,7 +44,7 @@ begin
     uart_receiver : entity work.uart_rx
         generic map (
             CLK_FREQ  => 100_000_000,
-            BAUD_RATE => 9_600
+            BAUD_RATE => 115_200
         )
         port map (
             clk        => clk,
@@ -57,7 +57,7 @@ begin
     uart_transmitter : entity work.uart_tx
         generic map (
             CLK_FREQ  => 100_000_000,
-            BAUD_RATE => 9_600
+            BAUD_RATE => 115_200
         )
         port map (
             clk      => clk,
@@ -82,8 +82,10 @@ begin
                 tx_start <= '0';
 
                 if rx_valid = '1' then
-                    -- pokaż odebrany bajt na LED-ach
-                    led_reg <= rx_data;
+                    -- pokaż odebrany bajt na LED-ach, ignorując znaki nowej linii (CR=0x0D, LF=0x0A)
+                    if rx_data /= x"0A" and rx_data /= x"0D" then
+                        led_reg <= rx_data;
+                    end if;
 
                     -- Zapamiętaj dane do odesłania (echo)
                     tx_data <= rx_data;
