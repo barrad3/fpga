@@ -8,7 +8,7 @@ end entity;
 architecture sim of uart_rx_tb is
 
     constant CLK_FREQ  : integer := 100_000_000;
-    constant BAUD_RATE : integer := 9_600;
+    constant BAUD_RATE : integer := 115_200;
     constant CLK_PERIOD : time := 10 ns;
     constant BIT_TICKS  : integer := CLK_FREQ / BAUD_RATE;
     constant BIT_TIME   : time := CLK_PERIOD * BIT_TICKS;
